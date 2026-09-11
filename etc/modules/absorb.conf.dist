@@ -1,0 +1,10 @@
+# Enable or Disable the Absorb module THIS CONFIG IS OBSOLETE
+
+Absorb.Enable = 1
+
+# Restrict the Absorb effect to dungeons only (1 for true, 0 for false)
+Absorb.DungeonsOnly = 1
+
+# Percentage of damage to convert to absorption (e.g., 0.05 for 5%)
+Absorb.Amount = 0.10
+

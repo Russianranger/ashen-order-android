@@ -1,0 +1,71 @@
+[worldserver]
+
+#
+# Minimum amount of emblems to be transferred
+# default: 10
+#
+
+EmblemTransfer.minAmount = 10
+
+#
+# Penalty percentage to apply
+# default: 0.1 (10%)
+#
+
+EmblemTransfer.penalty = 0.1
+
+#
+# Allows to transfer Emblems of Frost 
+# default: true
+#
+
+EmblemTransfer.allowEmblemsFrost = true
+
+#
+# Allows to transfer Emblems of Triumph 
+# default: true
+#
+
+EmblemTransfer.allowEmblemsTriumph = true
+
+#
+# Allows to transfer Emblems of Conquest 
+# default: true
+#
+
+EmblemTransfer.allowEmblemsConquest = true
+
+#
+# Allows to transfer Emblems of Heroism
+# default: true
+#
+
+EmblemTransfer.allowEmblemsHeroism = true
+
+#
+# Allows to transfer Emblems of Valor
+# default: true
+#
+
+EmblemTransfer.allowEmblemsValor = true
+
+#
+# Allows to transfer Badges of Justice
+# default: true
+#
+
+EmblemTransfer.allowBadgesJustice = true
+
+#
+# Allows to transfer Badges of Glory
+# default: true
+#
+
+EmblemTransfer.allowBadgesGlory = true
+
+#
+# Allows to transfer Badges of Courage
+# default: true
+#
+
+EmblemTransfer.allowBadgesCourage = true
