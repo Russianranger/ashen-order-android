@@ -18,8 +18,7 @@
 /apps/joiner
 /deps/deno
 /data/sql/custom/*
-/src/server/scripts/Custom/*
-!/src/server/scripts/Custom/README.md
+# Ashen's Custom scripts are required gameplay source; keep them in Git.
 
 /*.override.yml
 /*.override.yaml

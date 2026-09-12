@@ -22483,9 +22483,13 @@ soap_strerror(struct soap *soap)
 #ifndef WIN32
 # ifdef HAVE_STRERROR_R
 #  if !defined(_GNU_SOURCE) || (!_GNU_SOURCE && ((!defined(_POSIX_C_SOURCE) && !defined(_XOPEN_SOURCE)) || (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600)) || defined(__ANDROID__) || !defined(__GLIBC__))
+#   if defined(__BIONIC__) && defined(_GNU_SOURCE) && __ANDROID_API__ >= 23
+    return strerror_r(err, soap->msgbuf, sizeof(soap->msgbuf)); /* Bionic GNU variant */
+#   else
     err = strerror_r(err, soap->msgbuf, sizeof(soap->msgbuf)); /* XSI-compliant */
     if (err != 0)
       soap_strcpy(soap->msgbuf, sizeof(soap->msgbuf), "unknown error");
+#   endif
 #  else
     return strerror_r(err, soap->msgbuf, sizeof(soap->msgbuf)); /* GNU-specific */
 #  endif

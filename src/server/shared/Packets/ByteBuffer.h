@@ -23,6 +23,7 @@
 #include <array>
 #include <cstring>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 class MessageBuffer;
@@ -194,6 +195,15 @@ public:
     {
         append<int64>(value);
         return *this;
+    }
+
+    // Distinct 64-bit integer types on LP64 use the same packet representation.
+    // Disappears when long long already aliases int64/uint64.
+    template<typename T, std::enable_if_t<std::is_integral_v<T> && sizeof(T) == sizeof(uint64)
+        && !std::is_same_v<T, int64> && !std::is_same_v<T, uint64>, int> = 0>
+    ByteBuffer& operator<<(T value)
+    {
+        return *this << static_cast<std::conditional_t<std::is_signed_v<T>, int64, uint64>>(value);
     }
 
     // floating points

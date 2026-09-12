@@ -22,10 +22,17 @@
 #include "Util.h"
 #include <boost/algorithm/string/join.hpp>
 #include <boost/iostreams/copy.hpp>
-#include "boost/process.hpp"
+#include <boost/version.hpp>
+#if BOOST_VERSION >= 108900
+#include <boost/process/v1.hpp>
+namespace Process = boost::process::v1;
+#else
+#include <boost/process.hpp>
+namespace Process = boost::process;
+#endif
 #include <filesystem>
 
-using namespace boost::process;
+using namespace Process;
 using namespace boost::iostreams;
 
 namespace Acore
@@ -96,6 +103,12 @@ namespace Acore
                 fclose(ptr);
         });
 
+        if (!input.empty() && !inputFile)
+        {
+            LOG_ERROR(logger, "Could not open process input file '{}'", input);
+            return EXIT_FAILURE;
+        }
+
         // Start the child process
         child c = [&]()
         {
@@ -118,7 +131,7 @@ namespace Acore
                     exe = std::filesystem::absolute(executable).string(),
                     args = argsVector,
                     env = environment(boost::this_process::environment()),
-                    std_in = boost::process::close,
+                    std_in = Process::close,
                     std_out = outStream,
                     std_err = errStream
                 };
@@ -135,8 +148,10 @@ namespace Acore
             LOG_ERROR(logger, "{}", msg);
         });
 
+        // Drain both pipes concurrently to avoid blocking a large SQL import.
+        auto errorReader = std::async(std::launch::async, [&]() { copy(errStream, outError); });
         copy(outStream, outInfo);
-        copy(errStream, outError);
+        errorReader.get();
 
         // Call the waiter in the current scope to prevent
         // the streams from closing too early on leaving the scope.

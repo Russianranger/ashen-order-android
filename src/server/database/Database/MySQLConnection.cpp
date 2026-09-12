@@ -112,7 +112,8 @@ uint32 MySQLConnection::Open()
         unix_socket = 0;
     }
 #else
-    if (m_connectionInfo.host == ".")                                           // socket use option (Unix/Linux)
+    if (m_connectionInfo.host == "." || (!m_connectionInfo.port_or_socket.empty()
+        && m_connectionInfo.port_or_socket.front() == '/')) // Unix socket, including reconnects
     {
         unsigned int opt = MYSQL_PROTOCOL_SOCKET;
         mysql_options(mysqlInit, MYSQL_OPT_PROTOCOL, (char const*)&opt);
@@ -129,6 +130,17 @@ uint32 MySQLConnection::Open()
 
     if (m_connectionInfo.ssl != "")
     {
+#if defined(MARIADB_PACKAGE_VERSION_ID)
+        MySQLBool const requireSsl = m_connectionInfo.ssl == "ssl";
+        MySQLBool const verifyCertificate = false; // Matches MySQL SSL_MODE_REQUIRED.
+        if (mysql_options(mysqlInit, MYSQL_OPT_SSL_ENFORCE, &requireSsl)
+            || mysql_options(mysqlInit, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &verifyCertificate))
+        {
+            LOG_ERROR("sql.driver", "Could not configure MariaDB TLS: {}", mysql_error(mysqlInit));
+            mysql_close(mysqlInit);
+            return CR_SSL_CONNECTION_ERROR;
+        }
+#else
         mysql_ssl_mode opt_use_ssl = SSL_MODE_DISABLED;
         if (m_connectionInfo.ssl == "ssl")
         {
@@ -136,6 +148,7 @@ uint32 MySQLConnection::Open()
         }
 
         mysql_options(mysqlInit, MYSQL_OPT_SSL_MODE, (char const*)&opt_use_ssl);
+#endif
     }
 
     m_Mysql = reinterpret_cast<MySQLHandle*>(mysql_real_connect(mysqlInit, m_connectionInfo.host.c_str(), m_connectionInfo.user.c_str(),
@@ -143,6 +156,14 @@ uint32 MySQLConnection::Open()
 
     if (m_Mysql)
     {
+        // Enforce the configured requirement even across connector implementations.
+        if (m_connectionInfo.ssl == "ssl" && !mysql_get_ssl_cipher(m_Mysql))
+        {
+            LOG_ERROR("sql.driver", "TLS was required but the database connection is not encrypted");
+            mysql_close(m_Mysql);
+            m_Mysql = nullptr;
+            return CR_SSL_CONNECTION_ERROR;
+        }
         if (!m_reconnecting)
         {
             LOG_INFO("sql.sql", "MySQL client library: {}", mysql_get_client_info());
@@ -216,7 +237,7 @@ bool MySQLConnection::Execute(PreparedStatementBase* stmt)
 
     uint32 _s = getMSTime();
 
-#if MYSQL_VERSION_ID >= 80300
+#if !defined(MARIADB_PACKAGE_VERSION_ID) && MYSQL_VERSION_ID >= 80300
     if (mysql_stmt_bind_named_param(msql_STMT, msql_BIND, m_mStmt->GetParameterCount(), nullptr))
 #else
     if (mysql_stmt_bind_param(msql_STMT, msql_BIND))
@@ -268,7 +289,7 @@ bool MySQLConnection::_Query(PreparedStatementBase* stmt, MySQLPreparedStatement
 
     uint32 _s = getMSTime();
 
-#if MYSQL_VERSION_ID >= 80300
+#if !defined(MARIADB_PACKAGE_VERSION_ID) && MYSQL_VERSION_ID >= 80300
     if (mysql_stmt_bind_named_param(msql_STMT, msql_BIND, m_mStmt->GetParameterCount(), nullptr))
 #else
     if (mysql_stmt_bind_param(msql_STMT, msql_BIND))

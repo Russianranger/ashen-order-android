@@ -22,6 +22,8 @@
 #include "DatabaseLoader.h"
 #include "Log.h"
 #include "StartProcess.h"
+#include "SqlClientConfig.h"
+#include "MySQLWorkaround.h"
 #include "UpdateFetcher.h"
 #include "QueryResult.h"
 #include <filesystem>
@@ -41,7 +43,11 @@ bool DBUpdaterUtil::CheckExecutable()
     std::filesystem::path exe(GetCorrectedMySQLExecutable());
     if (!is_regular_file(exe))
     {
-        exe = Acore::SearchExecutableInPath("mysql");
+#if defined(MARIADB_PACKAGE_VERSION_ID)
+        exe = Acore::SearchExecutableInPath("mariadb");
+        if (exe.empty())
+#endif
+            exe = Acore::SearchExecutableInPath("mysql");
         if (!exe.empty() && is_regular_file(exe))
         {
             // Correct the path to the cli
@@ -443,25 +449,28 @@ void DBUpdater<T>::ApplyFile(DatabaseWorkerPool<T>& pool, std::string const& hos
 {
     std::string configTempDir = sConfigMgr->GetOption<std::string>("TempDir", "");
 
-    auto tempDir = configTempDir.empty() ? std::filesystem::temp_directory_path().string() : configTempDir;
-
-    tempDir = Acore::String::AddSuffixIfNotExists(tempDir, std::filesystem::path::preferred_separator);
-
-    std::string confFileName = "mysql_ac.conf";
-
-    std::ofstream outfile (tempDir + confFileName);
-
-    outfile << "[client]\npassword = \"" << password << '"' << std::endl;
-
-    outfile.close();
+    auto tempDir = configTempDir.empty() ? std::filesystem::temp_directory_path() : Path(configTempDir);
+    std::unique_ptr<Acore::SqlClientConfig> clientConfig;
+    try
+    {
+        clientConfig = std::make_unique<Acore::SqlClientConfig>(tempDir, password);
+    }
+    catch (std::exception const& error)
+    {
+        LOG_ERROR("sql.updates", "Could not prepare SQL client options: {}", error.what());
+        throw UpdateException("SQL client options failed");
+    }
 
     std::vector<std::string> args;
     args.reserve(9);
 
-    args.emplace_back("--defaults-extra-file="+tempDir + confFileName+"");
+    // --defaults-file must be first. Avoid inheriting unrelated Termux/user options.
+    args.emplace_back("--defaults-file=" + clientConfig->Path().string());
+    args.emplace_back("--batch");
+    args.emplace_back("--skip-reconnect");
 
     // CLI Client connection info
-    args.emplace_back("-h" + host);
+    args.emplace_back("-h" + (host == "." ? std::string("localhost") : host));
     args.emplace_back("-u" + user);
 
     // Check if we want to connect through ip or socket (Unix only)
@@ -474,7 +483,7 @@ void DBUpdater<T>::ApplyFile(DatabaseWorkerPool<T>& pool, std::string const& hos
 
 #else
 
-    if (!std::isdigit(port_or_socket[0]))
+    if (!port_or_socket.empty() && port_or_socket.front() == '/')
     {
         // We can't check if host == "." here, because it is named localhost if socket option is enabled
         args.emplace_back("-P0");
@@ -487,26 +496,47 @@ void DBUpdater<T>::ApplyFile(DatabaseWorkerPool<T>& pool, std::string const& hos
 
 #endif
 
-    // Set the default charset to utf8
-    args.emplace_back("--default-character-set=utf8");
+    args.emplace_back("--default-character-set=utf8mb4");
 
     // Set max allowed packet to 1 GB
     args.emplace_back("--max-allowed-packet=1GB");
 
+    // The packaged CLI must match the linked connector family.
+#if defined(MARIADB_PACKAGE_VERSION_ID)
+    if (ssl == "ssl")
+    {
+        // MariaDB's CLI can otherwise fall back to plaintext. Certificate
+        // verification makes this fail closed; remote TLS needs a trusted cert.
+        args.emplace_back("--ssl");
+        args.emplace_back("--ssl-verify-server-cert");
+    }
+    else if (!ssl.empty())
+        args.emplace_back("--skip-ssl");
+#else
     if (ssl == "ssl")
         args.emplace_back("--ssl-mode=REQUIRED");
-
-    // Execute sql file
-    args.emplace_back("-e");
-    args.emplace_back(Acore::StringFormat("BEGIN; SOURCE {}; COMMIT;", path.generic_string()));
+    else if (!ssl.empty())
+        args.emplace_back("--ssl-mode=DISABLED");
+#endif
 
     // Database
     if (!database.empty())
-        args.emplace_back(database);
+        args.emplace_back("--database=" + database);
 
     // Invokes a mysql process which doesn't leak credentials to logs
-    int const ret = Acore::StartProcess(DBUpdaterUtil::GetCorrectedMySQLExecutable(), args,
-        "sql.updates", "", true);
+    // Feed the file unchanged through stdin: the CLI understands comments,
+    // escapes, DELIMITER, and session state. No --force; a failed file must not
+    // be recorded as applied. SQL scripts retain their own transaction semantics.
+    int ret = EXIT_FAILURE;
+    try
+    {
+        ret = Acore::StartProcess(DBUpdaterUtil::GetCorrectedMySQLExecutable(), args,
+            "sql.updates", path.string(), true);
+    }
+    catch (std::exception const&)
+    {
+        LOG_ERROR("sql.updates", "Could not launch SQL client; check MySQLExecutable and native library paths");
+    }
 
     if (ret != EXIT_SUCCESS)
     {

@@ -77,7 +77,7 @@ void SetProcessPriority(std::string const& logChannel, uint32 affinity, bool hig
         CPU_ZERO(&mask);
 
         for (unsigned int i = 0; i < sizeof(affinity) * 8; ++i)
-            if (affinity & (1 << i))
+            if (affinity & (uint32(1) << i))
             {
                 CPU_SET(i, &mask);
             }
@@ -89,8 +89,17 @@ void SetProcessPriority(std::string const& logChannel, uint32 affinity, bool hig
         else
         {
             CPU_ZERO(&mask);
-            sched_getaffinity(0, sizeof(mask), &mask);
-            LOG_INFO(logChannel, "Using processors (bitmask, hex): {:x}", *(__cpu_mask*)(&mask));
+            if (sched_getaffinity(0, sizeof(mask), &mask))
+                LOG_ERROR(logChannel, "Can't read processor affinity: {}", strerror(errno));
+            else
+            {
+                // cpu_set_t is opaque: glibc's __cpu_mask does not exist in Bionic.
+                uint32 actualAffinity = 0;
+                for (unsigned int i = 0; i < sizeof(actualAffinity) * 8; ++i)
+                    if (CPU_ISSET(i, &mask))
+                        actualAffinity |= uint32(1) << i;
+                LOG_INFO(logChannel, "Using processors (bitmask, hex): {:x}", actualAffinity);
+            }
         }
     }
 

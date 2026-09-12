@@ -119,6 +119,15 @@ include(src/cmake/genrev.cmake)
 # print out the results before continuing
 include(src/cmake/showoptions.cmake)
 
+if(BUILD_APPLICATION_WORLDSERVER AND
+   NOT EXISTS "${CMAKE_SOURCE_DIR}/src/server/scripts/Custom/Timewalking/10Man.h")
+    message(FATAL_ERROR
+        "Ashen Order world source is incomplete: Custom/Timewalking/10Man.h is missing. "
+        "Restore the complete src/server/scripts/Custom tree from the working Thor source; "
+        "custom_script_loader.cpp also registers scripts whose implementations are absent. "
+        "Do not replace gameplay with stubs. Use -DAPPS_BUILD=auth-only to validate auth/database code meanwhile.")
+endif()
+
 #
 # Loading framework
 #
@@ -141,6 +150,12 @@ if (BUILD_APPLICATION_WORLDSERVER)
 endif()
 
 CU_RUN_HOOK("AFTER_SRC_LOAD")
+
+option(ASHEN_BUILD_COMPAT_TESTS "Build focused Android/database compatibility tests" OFF)
+if(ASHEN_BUILD_COMPAT_TESTS)
+    enable_testing()
+    add_subdirectory(android-build/tests)
+endif()
 
 if (BUILD_TESTING AND BUILD_APPLICATION_WORLDSERVER)
     # we use these flags to get code coverage
