@@ -31,7 +31,18 @@ else()
   set(BOOST_REQUIRED_VERSION 1.67)
 endif()
 
-find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED system filesystem program_options iostreams regex)
+# Termux can discover Boost directly from installed headers and libraries.
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 OLD)
+endif()
+
+# System is header-only since 1.69; its compatibility library was removed in 1.89.
+find_package(Boost ${BOOST_REQUIRED_VERSION} REQUIRED
+  COMPONENTS filesystem program_options iostreams regex
+  OPTIONAL_COMPONENTS system)
+if(Boost_VERSION_STRING VERSION_LESS "1.69" AND NOT Boost_SYSTEM_FOUND)
+  message(FATAL_ERROR "Boost before 1.69 requires the compiled system library")
+endif()
 
 if(NOT Boost_FOUND)
   if(NOT DEFINED ENV{Boost_ROOT} AND NOT DEFINED Boost_DIR AND NOT DEFINED BOOST_ROOT AND NOT DEFINED BOOSTROOT)

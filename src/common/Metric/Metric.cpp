@@ -212,7 +212,7 @@ void Metric::SendBatch()
     GetDataStream() << "Content-Type: application/octet-stream\r\n";
     GetDataStream() << "Content-Transfer-Encoding: binary\r\n";
 
-    GetDataStream() << "Content-Length: " << std::to_string(batchedData.tellp()) << "\r\n\r\n";
+    GetDataStream() << "Content-Length: " << static_cast<std::streamoff>(batchedData.tellp()) << "\r\n\r\n";
     GetDataStream() << batchedData.rdbuf();
 
     std::string http_version;

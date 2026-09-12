@@ -1,0 +1,74 @@
+# Validation record
+
+Validation baseline: `598dc2abb51e64322a4f2e3c3b31d142836e1109`, with the
+compatibility changes in this branch. Date: 2026-09-12.
+
+## Structural checks
+
+- Zero Gitlinks in the complete Git index, including `src/` and `modules/`.
+- 23 ordinary module trees represented in CMake's compilation database.
+- All 92 Custom `.cpp` files represented in `compile_commands.json`.
+- All 87 active Custom registration functions have definitions. The five
+  dormant loader entries remain dormant.
+- `DB_FULL/`, `data/`, `lua_scripts/`, the Custom source tree and all files in
+  `android-build/reference/` are preserved from the baseline.
+- No unresolved source submodules or Git LFS pointer files were found in the
+  materialized source/dependency/module trees.
+
+## Host build
+
+This is a Linux x86-64 compile/link check, **not** a native Android build or
+an APK test. GCC 13.3.0, CMake 4.2.0, Boost 1.90.0, MariaDB Connector/C 3.4.8,
+OpenSSL 3.0.13, and Readline 8.2 were used. Boost and the connector were built
+from their upstream releases into an isolated validation prefix.
+
+Configuration includes both servers, all static scripts/modules, core/script
+PCH, `NOJEM=ON`, `TOOLS_BUILD=none`, upstream coverage tests off and
+`ASHEN_BUILD_COMPAT_TESTS=ON`. Host Release optimization was explicitly set to
+`-O0 -DNDEBUG` to check the complete source within the validation environment.
+The Thor script uses normal Release `-O3 -DNDEBUG`. Host linking does not use
+`--allow-multiple-definition`.
+
+| Check | Result |
+| --- | --- |
+| Fresh CMake configure/generation | Passed |
+| `authserver` compile/link | Passed |
+| `authserver --version` without database/config | Passed |
+| `ashen_compatibility` CTest | 1/1 passed |
+| Full `worldserver` compile/link, without multiple-definition suppression | Passed |
+| `worldserver --version` without database/config | Passed |
+| Isolated staged install; both staged binaries start with `--version` | Passed (including without `LD_LIBRARY_PATH`) |
+| Native Termux Clang/ARM64 build | Requires running the documented command on Thor |
+| Full seed import / live server / gameplay | Not run |
+| Pocket Realm APK build / runtime / controller test | Not run |
+
+The focused test executable uses the real common, database and shared
+libraries. It checks numeric MySQL/MariaDB version parsing and rejection,
+64-bit prepared-statement/packet values, enum and duration binding, relative
+timers, literal loopback/subnet/IPv6 resolution with hostname fallback,
+private/escaped temporary SQL client options and cleanup, and subprocess
+stdin, exit errors, missing input and simultaneous output/error draining.
+It does not connect to a database or modify the intended offline seed.
+
+The Termux script passed `bash -n` and ShellCheck 0.11.0, its help rendered,
+and invalid jobs/profile/target combinations were rejected. Its native-only
+orchestration and Android-specific Bionic branches still require Thor.
+
+## Interpretation
+
+This validation distinguishes source completeness from Android execution.
+The previous `__cpu_mask` and metric stream-position errors are patched,
+as are modern Boost and MariaDB compatibility failures. The full build also
+found an Eluna API mismatch (`HasRootAura()` versus `isInRoots()`) and a stray
+leading period in `boss_murmur.cpp`; both were corrected. Eluna's HTTP header
+also recognizes the built-in Android macro. Staged startup found that the
+database connector was wrongly declared as a static import; its target now
+allows shared libraries so installed binaries retain the connector runtime
+path. Build discovery
+alone was insufficient to establish this; fresh compilation tests the actual
+translation units and linkage.
+
+The documented native validation must complete before packaging these servers
+into Pocket Realm. Database import, schema migration, app-prefix linkage,
+client-data compatibility and game/controller behavior are separate gates in
+[POCKET_REALM_HANDOFF.md](POCKET_REALM_HANDOFF.md).

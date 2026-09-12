@@ -16,6 +16,7 @@
  */
 
 #include "DatabaseWorkerPool.h"
+#include "DatabaseCompatibility.h"
 #include "AdhocStatement.h"
 #include "CharacterDatabase.h"
 #include "Errors.h"
@@ -59,6 +60,13 @@ DatabaseWorkerPool<T>::DatabaseWorkerPool() :
 {
     WPFatal(mysql_thread_safe(), "Used MySQL library isn't thread-safe.");
 
+#if defined(MARIADB_PACKAGE_VERSION_ID)
+    // Connector/C has its own 3.x version; MYSQL_VERSION_ID is a server identity.
+    unsigned long const clientVersion = mysql_get_client_version();
+    WPFatal(clientVersion >= 30300 && clientVersion / 10000 == MARIADB_PACKAGE_VERSION_ID / 10000,
+        "MariaDB Connector/C 3.3+ with matching header/library major versions is required. "
+        "Loaded: {} ({}), headers: {}.", mysql_get_client_info(), clientVersion, MARIADB_PACKAGE_VERSION_ID);
+#else
     bool isSupportClientDB = mysql_get_client_version() >= MIN_MYSQL_CLIENT_VERSION;
     bool isSameClientDB = mysql_get_client_version() == MYSQL_VERSION_ID;
 
@@ -66,6 +74,7 @@ DatabaseWorkerPool<T>::DatabaseWorkerPool() :
         mysql_get_client_info(), mysql_get_client_version(), MYSQL_VERSION_ID);
     WPFatal(isSameClientDB, "Used MySQL library version ({} id {}) does not match the version id used to compile AzerothCore (id {}).\nSearch the wiki for ACE00046 in Common Errors (https://www.azerothcore.org/wiki/common-errors#ace00046).",
         mysql_get_client_info(), mysql_get_client_version(), MYSQL_VERSION_ID);
+#endif
 }
 
 template <class T>
@@ -366,48 +375,10 @@ void DatabaseWorkerPool<T>::KeepAlive()
         Enqueue(new PingOperation);
 }
 
-/**
-* @brief Returns true if the version string given is incompatible
-*
-* Intended to be used with mysql_get_server_info()'s output as the source
-*
-* DatabaseIncompatibleVersion("8.0.35") => false
-* DatabaseIncompatibleVersion("5.6.6") => true
-*
-* Adapted from stackoverflow response
-* https://stackoverflow.com/a/2941508
-*
-* @param mysqlVersion The output from GetServerInfo()/mysql_get_server_info()
-* @return Returns true if the Server version is incompatible
-*/
+// Compare numeric version components, including MariaDB's optional 5.5.5 prefix.
 bool DatabaseIncompatibleVersion(std::string const mysqlVersion)
 {
-    // anon func to turn a version string into an array of uint8
-    // "1.2.3" => [1, 2, 3]
-    auto parse = [](std::string const& input)
-    {
-        std::vector<uint8> result;
-        std::istringstream parser(input);
-        result.push_back(parser.get());
-        for (int i = 1; i < 3; i++)
-        {
-            // Skip period
-            parser.get();
-            // Append int from parser to output
-            result.push_back(parser.get());
-        }
-        return result;
-    };
-
-    // default to values for MySQL
-    uint8 offset = 0;
-    std::string minVersion = MIN_MYSQL_SERVER_VERSION;
-
-    auto parsedMySQLVersion = parse(mysqlVersion.substr(offset));
-    auto parsedMinVersion = parse(minVersion);
-
-    return std::lexicographical_compare(parsedMySQLVersion.begin(), parsedMySQLVersion.end(),
-                                        parsedMinVersion.begin(), parsedMinVersion.end());
+    return !Acore::DatabaseCompatibility::IsServerSupported(mysqlVersion);
 }
 
 template <class T>
@@ -437,7 +408,7 @@ uint32 DatabaseWorkerPool<T>::OpenConnections(InternalIndex type, uint8 numConne
         }
         else if (DatabaseIncompatibleVersion(connection->GetServerInfo()))
         {
-            LOG_ERROR("sql.driver", "AzerothCore does not support MySQL versions below 8.0\n\nFound server version: {}. Server compiled with: {}.",
+            LOG_ERROR("sql.driver", "Ashen Order requires MySQL 8.0+ or MariaDB 11.4.5+.\n\nFound server version: {}. Server compiled with: {}.",
                 connection->GetServerInfo(), MYSQL_VERSION_ID);
             return 1;
         }

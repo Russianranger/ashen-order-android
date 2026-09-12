@@ -33,6 +33,7 @@
 #include "IPLocation.h"
 #include "IoContext.h"
 #include "Log.h"
+#include "GitRevision.h"
 #include "MySQLThreading.h"
 #include "OpenSSLCrypto.h"
 #include "ProcessPriority.h"
@@ -77,6 +78,12 @@ int main(int argc, char** argv)
     // exit if help or version is enabled
     if (vm.count("help"))
         return 0;
+
+    if (vm.count("version"))
+    {
+        std::cout << GitRevision::GetFullVersion() << '\n';
+        return 0;
+    }
 
     // Add file and args in config
     sConfigMgr->Configure(configFile.generic_string(), std::vector<std::string>(argv, argv + argc));
