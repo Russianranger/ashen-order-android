@@ -1,0 +1,36 @@
+===== DEVICE =====
+Linux localhost 5.15.123-android13-8-gafd857749d1f #1 SMP PREEMPT Thu Feb 5 07:59:03 UTC 2026 aarch64 Android
+
+Android release:
+13
+
+Android SDK:
+33
+
+Primary ABI:
+arm64-v8a
+
+===== CLANG =====
+clang version 21.1.8
+Target: aarch64-unknown-linux-android24
+Thread model: posix
+InstalledDir: /data/data/com.termux/files/usr/bin
+
+===== CMAKE =====
+cmake version 4.3.2
+
+CMake suite maintained and supported by Kitware (kitware.com/cmake).
+
+===== NINJA =====
+The program ninja is not installed. Install it by executing:
+ pkg install ninja
+
+===== MARIADB =====
+mariadb from 12.2.2-MariaDB, client 15.2 for Android (aarch64) using  EditLine wrapper
+
+===== OPENSSL =====
+The program openssl is not installed. Install it by executing:
+ pkg install openssl-tool
+
+===== PKG-CONFIG =====
+0.29.2

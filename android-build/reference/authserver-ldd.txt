@@ -1,0 +1,2 @@
+The program ldd is not installed. Install it by executing:
+ pkg install ldd

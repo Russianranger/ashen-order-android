@@ -1,0 +1,2 @@
+27500cbc10ebac267d73520f1a95957a8c0b0ab75805c78381ec7d73ad57a953  /data/data/com.termux/files/home/Ashen/bin/worldserver
+939bc5a83748bde4e9416a808ff87f498c5d213a2c03d7e5d42c3e1bb9514b39  /data/data/com.termux/files/home/Ashen/bin/authserver
