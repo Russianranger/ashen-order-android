@@ -25,6 +25,16 @@ Only the optional `thor-reference` profile also needs `boost-static`.
 forward: installing packages today does not reproduce historical versions.
 The script records installed versions for every attempt.
 
+Page-size and Android-property probes are optional diagnostics. The script
+tries `getconf` on PATH and then Android's `/system/bin/getconf`, and records
+`unavailable` if it cannot obtain a page size. No extra package is required
+for that probe.
+
+If an older checkout stopped with `getconf: command not found`, update the
+checkout to this branch's latest commit and run with `--fresh`. The failed
+attempt stopped before CMake, so there are no compiled objects to recover.
+Keep its logs; a changed source commit deliberately cannot use `--resume`.
+
 ## 2. Clone the implementation branch
 
 Use a new directory, separate from `~/Ashen`. No replacement of `src/` or

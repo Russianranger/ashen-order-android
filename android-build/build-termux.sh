@@ -141,11 +141,22 @@ git -C "$ashen_source" status --short > "$ashen_log/git-status.txt"
 git -C "$ashen_source" ls-files --stage > "$ashen_log/source-index.txt"
 printf 'Gitlinks: %s\n' "$ashen_gitlinks" > "$ashen_log/structure.txt"
 {
-    uname -srmo
-    getconf PAGESIZE
-    if command -v getprop >/dev/null; then
-        getprop ro.build.version.sdk
-        getprop ro.product.cpu.abi
+    # Platform metadata is diagnostic; missing Android utilities must not stop CMake.
+    uname -srmo 2>/dev/null || printf 'Kernel: unavailable\n'
+    ashen_page_size=unavailable
+    for ashen_getconf in getconf /system/bin/getconf; do
+        if command -v "$ashen_getconf" >/dev/null 2>&1; then
+            if ashen_page_size=$("$ashen_getconf" PAGESIZE 2>/dev/null) \
+                && [[ $ashen_page_size =~ ^[1-9][0-9]*$ ]]; then
+                break
+            fi
+        fi
+        ashen_page_size=unavailable
+    done
+    printf 'Page size: %s\n' "$ashen_page_size"
+    if command -v getprop >/dev/null 2>&1; then
+        getprop ro.build.version.sdk 2>/dev/null || printf 'Android SDK: unavailable\n'
+        getprop ro.product.cpu.abi 2>/dev/null || printf 'Android ABI: unavailable\n'
     fi
 } > "$ashen_log/android-platform.txt"
 
