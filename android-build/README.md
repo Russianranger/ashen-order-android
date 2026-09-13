@@ -69,6 +69,21 @@ builds `authserver` and `worldserver` sequentially. It runs each server's
 `--version` without opening a database, and records its SHA-256 and ELF headers,
 interpreter, RPATH/RUNPATH and required libraries. This does not start a realm.
 
+If an older checkout reports `Hostname/service fallback failed`, update it:
+
+```bash
+cd "$HOME/ashen-termux-validation"
+git fetch origin codex/termux-native-build
+git checkout --detach origin/codex/termux-native-build
+bash android-build/build-termux.sh --fresh --jobs 2
+```
+
+The resolver now uses explicit zero flags for a requested address family;
+Android rejects the previous `AI_ALL` flag. The hostname/service test remains
+mandatory and now reports the resolver error category, code and message.
+Keep the failed attempt's logs. Use a fresh build because changing the source
+commit invalidates the script's resume identity; do not skip CTest.
+
 Use `--configure-only` to stop after CMake. Use `--target authserver` for the
 auth milestone or `--target worldserver` for world compilation. The generated
 project includes both servers and all static modules/scripts.

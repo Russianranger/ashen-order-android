@@ -18,6 +18,7 @@
 #ifndef Resolver_h__
 #define Resolver_h__
 
+#include "IoContext.h"
 #include "Optional.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <string>
@@ -35,6 +36,13 @@ namespace Acore::Asio
         Optional<boost::asio::ip::tcp::endpoint> Resolve(boost::asio::ip::tcp const& protocol, std::string const& host, std::string const& service)
         {
             boost::system::error_code ec;
+            return Resolve(protocol, host, service, ec);
+        }
+
+        Optional<boost::asio::ip::tcp::endpoint> Resolve(boost::asio::ip::tcp const& protocol, std::string const& host,
+            std::string const& service, boost::system::error_code& ec)
+        {
+            ec.clear();
             // Local addresses/subnet masks need no DNS or active Android network.
             // Keep the resolver fallback for hostnames and named services.
             if (service.empty())
@@ -44,15 +52,19 @@ namespace Acore::Asio
                     return boost::asio::ip::tcp::endpoint(address, 0);
                 ec.clear();
             }
+            // The caller already selects an address family. Android rejects
+            // AI_ALL (all_matching); IPv4-mapped IPv6 results are not needed.
+            // Explicit zero flags also avoid the default AI_ADDRCONFIG, which
+            // can filter loopback results when the device has no active network.
 #if BOOST_VERSION >= 106600
-            boost::asio::ip::resolver_base::flags flagsResolver = boost::asio::ip::resolver_base::all_matching;
+            boost::asio::ip::resolver_base::flags flagsResolver{};
             boost::asio::ip::tcp::resolver::results_type results = _impl.resolve(protocol, host, service, flagsResolver, ec);
             if (results.begin() == results.end() || ec)
                 return {};
 
             return results.begin()->endpoint();
 #else
-            boost::asio::ip::resolver_query_base::flags flagsQuery = boost::asio::ip::tcp::resolver::query::all_matching;
+            boost::asio::ip::resolver_query_base::flags flagsQuery{};
             boost::asio::ip::tcp::resolver::query query(std::move(protocol), std::move(host), std::move(service), flagsQuery);
             boost::asio::ip::tcp::resolver::iterator itr = _impl.resolve(query, ec);
             boost::asio::ip::tcp::resolver::iterator end;

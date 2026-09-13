@@ -76,8 +76,34 @@ namespace
         Require(loopback && loopback->address().is_loopback(), "Offline loopback failed");
         Require(netmask && netmask->address().to_string() == "255.255.0.0", "Subnet mask changed");
         Require(ipv6 && ipv6->address().is_loopback(), "IPv6 literal failed");
-        auto hostname = resolver.Resolve(boost::asio::ip::tcp::v4(), "localhost", "80");
-        Require(hostname && hostname->port() == 80, "Hostname/service fallback failed");
+        auto checkEndpoint = [&](boost::asio::ip::tcp const& protocol, char const* host,
+            char const* service, unsigned short port)
+        {
+            // Start with an error to ensure successful resolution clears it.
+            boost::system::error_code error = boost::asio::error::invalid_argument;
+            auto endpoint = resolver.Resolve(protocol, host, service, error);
+            if (error || !endpoint)
+                throw std::runtime_error(std::string("Resolution failed for ") + host + ":" + service
+                    + " (" + error.category().name() + ":" + std::to_string(error.value())
+                    + ": " + error.message() + ")");
+            Require(endpoint->address().is_loopback(), "Resolved address is not loopback");
+            Require(endpoint->address().is_v4() == (protocol == boost::asio::ip::tcp::v4()),
+                "Resolver changed the requested address family");
+            Require(endpoint->port() == port, "Resolved service port changed");
+        };
+        checkEndpoint(boost::asio::ip::tcp::v4(), "127.0.0.1", "", 0);
+        checkEndpoint(boost::asio::ip::tcp::v4(), "localhost", "80", 80);
+        checkEndpoint(boost::asio::ip::tcp::v4(), "localhost", "", 0);
+        checkEndpoint(boost::asio::ip::tcp::v4(), "localhost", "http", 80);
+        checkEndpoint(boost::asio::ip::tcp::v4(), "127.0.0.1", "3724", 3724);
+        checkEndpoint(boost::asio::ip::tcp::v6(), "::1", "8085", 8085);
+
+        boost::system::error_code error;
+        auto mismatch = resolver.Resolve(boost::asio::ip::tcp::v4(), "::1", "", error);
+        Require(!mismatch && error, "Address family mismatch was accepted or lost its error");
+        auto badService = resolver.Resolve(boost::asio::ip::tcp::v4(), "127.0.0.1",
+            "ashen-test-service-that-does-not-exist", error);
+        Require(!badService && error, "Unknown service was accepted or lost its error");
 
         Acore::Asio::DeadlineTimer timer(context);
         Require(!Acore::Asio::get_io_context(timer).stopped(), "Timer lost its io_context");

@@ -54,6 +54,52 @@ The Termux script passed `bash -n` and ShellCheck 0.11.0, its help rendered,
 and invalid jobs/profile/target combinations were rejected. Its native-only
 orchestration and Android-specific Bionic branches still require Thor.
 
+## Native Thor follow-up: resolver flags (2026-09-13)
+
+The Thor screenshot at `ba747c6887e1890d499eda329086bb41d2df0b9b` shows
+successful compilation/linkage of the common, database and shared libraries
+and the compatibility executable. CTest then stopped at
+`Hostname/service fallback failed`. The screenshot does not establish a
+complete native authserver or worldserver build.
+
+The failing lookup was IPv4 `localhost` with service `80`. The wrapper passed
+Boost.Asio `all_matching` (`AI_ALL`). Android 13's
+[allowed resolver flags](https://android.googlesource.com/platform/bionic/+/refs/heads/android13-release/libc/include/netdb.h)
+exclude `AI_ALL`, and its
+[getaddrinfo implementation](https://android.googlesource.com/platform/bionic/+/refs/heads/android13-release/libc/dns/net/getaddrinfo.c)
+rejects flags outside that set with `EAI_BADFLAGS` before resolving a name.
+The screenshot alone did not expose that error code; the source inspection
+and controlled reproduction identify this incompatibility.
+
+Resolution now explicitly passes zero flags for the caller's selected family.
+This also avoids Asio's default `AI_ADDRCONFIG` filtering in offline use.
+Numeric address handling remains intact, and hostnames and named services
+still go through the real system resolver. An error-code overload preserves
+the existing three-argument API while letting tests report the actual error.
+
+Focused Linux x86-64 checks used GCC 13.3 and Boost 1.90 headers. The timer and
+address test function was compiled directly from the compatibility test source
+against the real repository Resolver, IoContext and DeadlineTimer headers.
+
+| Check | Result |
+| --- | --- |
+| Previous resolver/tests with normal glibc | Passed |
+| Previous resolver/tests with Android's allowed-flag check | Failed at `Hostname/service fallback failed`, reproducing Thor's assertion |
+| Updated resolver/tests with normal glibc | Passed |
+| Updated resolver/tests with Android's allowed-flag check | Passed |
+
+The Linux-only compatibility-test linker wrapper validates the Android flag
+set, then delegates valid requests to the real `getaddrinfo`. It does not
+fabricate endpoints or affect either server. It makes the regression visible
+on Linux as well as on Android. Assertions cover literal IPv4/subnet/IPv6,
+localhost with empty/numeric/named services, auth/world numeric ports,
+address-family preservation, unknown-service errors and relative timers.
+
+This follow-up did not repeat the full host world build or run on Thor.
+The updated native CTest and both complete server builds remain required.
+The workflow still stops on a failed test. Update the source and use `--fresh`;
+the earlier build directory remains available for its logs.
+
 ## Interpretation
 
 This validation distinguishes source completeness from Android execution.
