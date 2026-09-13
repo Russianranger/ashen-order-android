@@ -360,7 +360,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR szCmdLine, int sw) {\
 
 // Bring in shared_ptr and weak_ptr
 #if (defined(__GNUC__) && defined(__APPLE__)) || defined(__linux__)
-#include <ciso646> // Defines _LIBCC_VERSION if linking against libc++ or does nothing
+#include <version> // Defines _LIBCPP_VERSION without the removed <ciso646> header.
 #endif
 #if (!defined(_LIBCPP_VERSION) && defined(__APPLE__)) || (!defined(_LIBCPP_VERSION) && defined(__linux__))
 #   include <tr1/memory>

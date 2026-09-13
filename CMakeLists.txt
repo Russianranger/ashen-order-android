@@ -142,6 +142,12 @@ endif()
 
 CU_RUN_HOOK("AFTER_SRC_LOAD")
 
+option(ASHEN_BUILD_COMPAT_TESTS "Build focused Android/MariaDB compatibility tests" OFF)
+if(ASHEN_BUILD_COMPAT_TESTS)
+    enable_testing()
+    add_subdirectory(android-build/tests)
+endif()
+
 if (BUILD_TESTING AND BUILD_APPLICATION_WORLDSERVER)
     # we use these flags to get code coverage
     set(UNIT_TEST_CXX_FLAGS "-fprofile-arcs -ftest-coverage -fno-inline")

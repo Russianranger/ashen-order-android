@@ -18,25 +18,40 @@
 #ifndef DeadlineTimer_h__
 #define DeadlineTimer_h__
 
-#include <boost/asio/deadline_timer.hpp>
+#include <boost/version.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/date_time/posix_time/posix_time_duration.hpp>
+#include <chrono>
 
 #if BOOST_VERSION >= 107000
-#define BasicDeadlineTimerThirdTemplateArg , boost::asio::io_context::executor_type
-#elif BOOST_VERSION >= 106600
-#define BasicDeadlineTimerThirdTemplateArg
+#define DeadlineTimerBase boost::asio::basic_waitable_timer<std::chrono::steady_clock, boost::asio::wait_traits<std::chrono::steady_clock>, boost::asio::io_context::executor_type>
 #else
-#define BasicDeadlineTimerThirdTemplateArg , boost::asio::deadline_timer_service<boost::posix_time::ptime, boost::asio::time_traits<boost::posix_time::ptime>>
+#define DeadlineTimerBase boost::asio::steady_timer
 #endif
-
-#define DeadlineTimerBase boost::asio::basic_deadline_timer<boost::posix_time::ptime, boost::asio::time_traits<boost::posix_time::ptime> BasicDeadlineTimerThirdTemplateArg>
 
 namespace Acore::Asio
 {
     class DeadlineTimer : public DeadlineTimerBase
     {
     public:
-        using DeadlineTimerBase::basic_deadline_timer;
+        // Preserve the core's relative-time interface and forward declarations.
+        // Boost 1.90 hides basic_deadline_timer with BOOST_ASIO_NO_DEPRECATED.
+        template<class ExecutionContext>
+        explicit DeadlineTimer(ExecutionContext& context)
+#if BOOST_VERSION >= 107000
+            : DeadlineTimerBase(context.get_executor()) { }
+#else
+            : DeadlineTimerBase(static_cast<boost::asio::io_context&>(context)) { }
+#endif
+
+        std::size_t expires_from_now(boost::posix_time::time_duration const& duration)
+        {
+            return expires_after(std::chrono::microseconds(duration.total_microseconds()));
+        }
     };
 }
+
+#undef DeadlineTimerBase
 
 #endif // DeadlineTimer_h__

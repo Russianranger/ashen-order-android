@@ -23,7 +23,7 @@ private:
 
     struct ScoreData
     {
-        StatType StatType;
+        StatBoostMgr::StatType StatType;
         uint32 Score;
     };
 

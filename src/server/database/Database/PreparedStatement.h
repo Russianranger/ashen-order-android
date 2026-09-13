@@ -22,6 +22,7 @@
 #include "Duration.h"
 #include "SQLOperation.h"
 #include <future>
+#include <type_traits>
 #include <tuple>
 #include <variant>
 #include <vector>
@@ -76,14 +77,19 @@ public:
     template<typename T>
     inline Acore::Types::is_default<T> SetData(const uint8 index, T value)
     {
-        SetValidData(index, value);
+        // Normalize LP64 long/long long to the existing variant instantiations.
+        // SetValidData retains its bounds assertion.
+        if constexpr (std::is_integral_v<T> && sizeof(T) == sizeof(uint64))
+            SetValidData(index, static_cast<std::conditional_t<std::is_signed_v<T>, int64, uint64>>(value));
+        else
+            SetValidData(index, value);
     }
 
     // Set enums
     template<typename T>
     inline Acore::Types::is_enum_v<T> SetData(const uint8 index, T value)
     {
-        SetValidData(index, std::underlying_type_t<T>(value));
+        SetData(index, std::underlying_type_t<T>(value));
     }
 
     // Set string_view
@@ -110,7 +116,10 @@ public:
     template<class _Rep, class _Period>
     inline void SetData(const uint8 index, std::chrono::duration<_Rep, _Period> const& value, bool convertToUin32 = true)
     {
-        SetValidData(index, convertToUin32 ? static_cast<uint32>(value.count()) : value.count());
+        if (convertToUin32)
+            SetData(index, static_cast<uint32>(value.count()));
+        else
+            SetData(index, value.count());
     }
 
     // Set all
